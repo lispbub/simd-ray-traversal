@@ -282,6 +282,10 @@ void CudaCompiler::staticInit(void)
         {
             String prog = sprintf("%c:\\%s", drive, (progX86 == 0) ? "Program Files" : "Program Files (x86)");
 		    potentialCudaPaths.add(prog + sprintf("\\NVIDIA GPU Computing Toolkit\\CUDA\\v%.1f", driverVersion));
+            potentialVSPaths.add(prog + "\\Microsoft Visual Studio\\2017\\Community");
+            potentialVSPaths.add(prog + "\\Microsoft Visual Studio 14.0");
+            potentialVSPaths.add(prog + "\\Microsoft Visual Studio 12.0");
+            potentialVSPaths.add(prog + "\\Microsoft Visual Studio 11.0");
             potentialVSPaths.add(prog + "\\Microsoft Visual Studio 10.0");
             potentialVSPaths.add(prog + "\\Microsoft Visual Studio 9.0");
             potentialVSPaths.add(prog + "\\Microsoft Visual Studio 8");
@@ -351,12 +355,21 @@ void CudaCompiler::staticInit(void)
     Array<String> vsBinList;
     splitPathList(vsBinList, pathEnv);
     for (int i = 0; i < potentialVSPaths.getSize(); i++)
+    {
         vsBinList.add(potentialVSPaths[i] + "\\VC\\bin");
+        vsBinList.add(potentialVSPaths[i] + "\\VC\\Tools\\MSVC\\14.11.25503\\bin\\Hostx64\\x64");
+    }
 
     String vsBinPath;
     for (int i = 0; i < vsBinList.getSize(); i++)
     {
         if (vsBinList[i].getLength() && fileExists(vsBinList[i] + "\\vcvars32.bat"))
+        {
+            vsBinPath = vsBinList[i];
+            break;
+        }
+
+        if (vsBinList[i].getLength() && fileExists(vsBinList[i] + "\\nmake.exe"))
         {
             vsBinPath = vsBinList[i];
             break;
@@ -392,6 +405,7 @@ void CudaCompiler::staticInit(void)
 
     Array<String> vsIncList;
     vsIncList.add(vsBinPath + "\\..\\INCLUDE");
+    vsIncList.add(vsBinPath + "\\..\\..\\..\\include");
     splitPathList(vsIncList, includeEnv);
     for (int i = 0; i < potentialVSPaths.getSize(); i++)
         vsIncList.add(potentialVSPaths[i] + "\\VC\\INCLUDE");
@@ -691,7 +705,7 @@ void CudaCompiler::runPreprocessor(String& cubinFile, String& finalOpts)
     }
 
     // Hash final compiler options and version.
-
+	
     finalOpts = fixOptions(finalOpts);
     hashA += hash<String>(finalOpts);
     hashB += s_nvccVersionHash;

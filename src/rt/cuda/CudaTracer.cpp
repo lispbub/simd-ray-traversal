@@ -67,6 +67,7 @@ void CudaTracer::setKernel(const String& kernelName)
         c.blockWidth            = 0;
         c.blockHeight           = 0;
         c.usePersistentThreads  = 0;
+        c.desiredWarps          = 0;
     }
 
     // Query config.
@@ -130,13 +131,27 @@ F32 CudaTracer::traceBatch(RayBuffer& rays)
     // Set texture references.
 
     module->setTexRef("t_rays", rays.getRayBuffer(), CU_AD_FORMAT_FLOAT, 4);
-    module->setTexRef("t_nodesA", nodePtr + nodeOfsA.x, nodeOfsA.y, CU_AD_FORMAT_FLOAT, 4);
-    module->setTexRef("t_nodesB", nodePtr + nodeOfsB.x, nodeOfsB.y, CU_AD_FORMAT_FLOAT, 4);
-    module->setTexRef("t_nodesC", nodePtr + nodeOfsC.x, nodeOfsC.y, CU_AD_FORMAT_FLOAT, 4);
-    module->setTexRef("t_nodesD", nodePtr + nodeOfsD.x, nodeOfsD.y, CU_AD_FORMAT_FLOAT, 4);
-    module->setTexRef("t_trisA", triPtr + triOfsA.x, triOfsA.y, CU_AD_FORMAT_FLOAT, 4);
-    module->setTexRef("t_trisB", triPtr + triOfsB.x, triOfsB.y, CU_AD_FORMAT_FLOAT, 4);
-    module->setTexRef("t_trisC", triPtr + triOfsC.x, triOfsC.y, CU_AD_FORMAT_FLOAT, 4);
+    
+    if (m_bvh->getLayout() == BVHLayout_Oct_Mini) {
+        module->setTexRef("t_nodesA", m_bvh->m_nodes_XY.getCudaPtr(), m_bvh->m_nodes_XY.getSize(), CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_nodesB", m_bvh->m_nodes_ZI.getCudaPtr(), m_bvh->m_nodes_ZI.getSize(), CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_nodesC", nodePtr + nodeOfsC.x, nodeOfsC.y, CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_nodesD", nodePtr + nodeOfsD.x, nodeOfsD.y, CU_AD_FORMAT_FLOAT, 4);
+
+        module->setTexRef("t_trisA", m_bvh->m_triWoop_v0.getCudaPtr(), m_bvh->m_triWoop_v0.getSize(), CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_trisB", m_bvh->m_triWoop_v1.getCudaPtr(), m_bvh->m_triWoop_v1.getSize(), CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_trisC", m_bvh->m_triWoop_v2.getCudaPtr(), m_bvh->m_triWoop_v2.getSize(), CU_AD_FORMAT_FLOAT, 4);
+    }
+    else {
+        module->setTexRef("t_nodesA", nodePtr + nodeOfsA.x, nodeOfsA.y, CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_nodesB", nodePtr + nodeOfsB.x, nodeOfsB.y, CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_nodesC", nodePtr + nodeOfsC.x, nodeOfsC.y, CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_nodesD", nodePtr + nodeOfsD.x, nodeOfsD.y, CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_trisA", triPtr + triOfsA.x, triOfsA.y, CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_trisB", triPtr + triOfsB.x, triOfsB.y, CU_AD_FORMAT_FLOAT, 4);
+        module->setTexRef("t_trisC", triPtr + triOfsC.x, triOfsC.y, CU_AD_FORMAT_FLOAT, 4);
+    }
+    
     module->setTexRef("t_triIndices", indexBuf, CU_AD_FORMAT_SIGNED_INT32, 1);
 
     // Determine block and grid sizes.
@@ -147,6 +162,8 @@ F32 CudaTracer::traceBatch(RayBuffer& rays)
         *(S32*)module->getGlobal("g_warpCounter").getMutablePtr() = 0;
         desiredWarps = 720; // Tesla: 30 SMs * 24 warps, Fermi: 15 SMs * 48 warps
     }
+    if (m_kernelConfig.desiredWarps != 0)
+        desiredWarps = m_kernelConfig.desiredWarps;
 
     Vec2i blockSize(m_kernelConfig.blockWidth, m_kernelConfig.blockHeight);
     int blockWarps = (blockSize.x * blockSize.y + 31) / 32;

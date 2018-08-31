@@ -60,9 +60,10 @@ extern "C" __global__ void reconstructKernel(void)
 
     const ReconstructInput& in = c_ReconstructInput;
     int taskIdx = threadIdx.x + blockDim.x * (threadIdx.y + blockDim.y * (blockIdx.x + gridDim.x * blockIdx.y));
+
     if (taskIdx >= in.numPrimary)
         return;
-
+	
     // Initialize.
 
     int                     primarySlot     = in.firstPrimary + taskIdx;

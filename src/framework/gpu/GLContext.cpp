@@ -808,7 +808,7 @@ bool GLContext::choosePixelFormat(int& formatIdx, HDC hdc, const Config& config)
     reqs.add(Vec2i(WGL_PIXEL_TYPE_ARB,      WGL_TYPE_RGBA_ARB));
     reqs.add(Vec2i(WGL_DEPTH_BITS_ARB,      24));
     reqs.add(Vec2i(WGL_STENCIL_BITS_ARB,    8));
-    reqs.add(Vec2i(WGL_STEREO_ARB,          (config.isStereo) ? 1 : 0));
+    //reqs.add(Vec2i(WGL_STEREO_ARB,          (config.isStereo) ? 1 : 0));
 
     if (config.numSamples > 1)
         reqs.add(Vec2i(WGL_SAMPLES_ARB, config.numSamples)); // WGL_ARB_multisample
@@ -832,14 +832,28 @@ bool GLContext::choosePixelFormat(int& formatIdx, HDC hdc, const Config& config)
     if (!GL_FUNC_AVAILABLE(wglChoosePixelFormatARB))
         fail("wglChoosePixelFormatARB() not available!");
 
+    const int attribList[] =
+    {
+        WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+        WGL_ACCELERATION_ARB,    WGL_FULL_ACCELERATION_ARB,
+        WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+        WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+        WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+        WGL_DEPTH_BITS_ARB, 24,
+        WGL_STENCIL_BITS_ARB, 8,
+        WGL_SAMPLES_ARB, config.numSamples,
+        0, // End
+    };
+
     UINT numFormats = 0;
-    if (!wglChoosePixelFormatARB(hdc, &reqs[0].x, NULL, 0, NULL, &numFormats))
+    int pixelFormats;
+    if (!wglChoosePixelFormatARB(hdc, attribList, NULL, 1, &pixelFormats , &numFormats))
         failWin32Error("wglChoosePixelFormatARB");
     if (numFormats == 0)
         return false;
 
     Array<int> formats(NULL, numFormats);
-    if (!wglChoosePixelFormatARB(hdc, &reqs[0].x, NULL, numFormats, formats.getPtr(), &numFormats))
+    if (!wglChoosePixelFormatARB(hdc, attribList, NULL, numFormats, formats.getPtr(), &numFormats))
         failWin32Error("wglChoosePixelFormatARB");
 
     // Choose format based on the preferences.

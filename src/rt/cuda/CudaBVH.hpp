@@ -111,9 +111,18 @@ private:
     void        createNodeBasic     (const BVH& bvh);
     void        createTriWoopBasic  (const BVH& bvh);
     void        createTriIndexBasic (const BVH& bvh);
-    void        createCompact       (const BVH& bvh, int nodeOffsetSizeDiv);
+    void        createCompact       (const BVH& bvh, int nodeOffsetSizeDiv, bool indexed = false);
+
+    void        createQuad          (const BVH& bvh, int nodeOffsetSizeDiv, bool indexed = false);
+    void        createOct           (const BVH& bvh, int nodeOffsetSizeDiv, bool indexed = false);
+    void        createBin           (const BVH& bvh, int nodeOffsetSizeDiv, bool indexed = false);
+
+    void        createOctMini       (const BVH& bvh, int nodeOffsetSizeDiv, bool indexed = false);
+    int         peekSubTreeSize8    (const BVHNode* bvh);
 
     void        woopifyTri          (const BVH& bvh, int idx);
+    void        woopifyTri_bypass   (const BVH& bvh, int idx);
+
 
 private:
     BVHLayout   m_layout;
@@ -121,6 +130,13 @@ private:
     Buffer      m_triWoop;
     Buffer      m_triIndex;
     Vec4f       m_woop[3];
+
+public:
+    Buffer      m_nodes_XY;
+    Buffer      m_nodes_ZI;
+    Buffer      m_triWoop_v0;
+    Buffer      m_triWoop_v1;
+    Buffer      m_triWoop_v2;
 };
 
 //------------------------------------------------------------------------

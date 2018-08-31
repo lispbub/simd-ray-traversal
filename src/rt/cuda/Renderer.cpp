@@ -58,6 +58,8 @@ Renderer::Renderer(void)
     m_bvhCachePath = "bvhcache";
 
     m_platform = Platform("GPU");
+
+    
     m_platform.setLeafPreferences(1, 8);
 }
 
@@ -146,6 +148,24 @@ CudaBVH* Renderer::getCudaBVH(void)
     if (m_window)
         m_window->showModalMessage("Building BVH...");
 
+    // Adjust max leaf number.
+
+    if (layout == BVHLayout_Bin || layout == BVHLayout_Bin_Idx)
+    {
+        m_platform.setLeafPreferences(2, 2);
+    }
+    else if (layout == BVHLayout_Quad|| layout == BVHLayout_Quad_Idx)
+    {
+        m_platform.setLeafPreferences(4, 4);
+    } 
+    else if (layout == BVHLayout_Oct || layout == BVHLayout_Oct_Idx || layout == BVHLayout_Oct_Mini)
+    {
+        m_platform.setLeafPreferences(8, 8);
+    }
+    else {
+        m_platform.setLeafPreferences(1, 4);
+    }
+
     // Build BVH.
 
     BVH bvh(m_scene, m_platform, m_buildParams);
@@ -217,6 +237,7 @@ void Renderer::beginFrame(GLContext* gl, const CameraControls& camera)
 
     if (m_params.rayType != RayType_Primary)
         m_tracer.traceBatch(m_primaryRays);
+    
 
     // Initialize state.
 
@@ -224,6 +245,8 @@ void Renderer::beginFrame(GLContext* gl, const CameraControls& camera)
     m_newBatch      = true;
     m_batchRays     = NULL;
     m_batchStart    = 0;
+
+
 }
 
 //------------------------------------------------------------------------
@@ -306,6 +329,7 @@ void Renderer::updateResult(void)
     in.primaryResults       = m_primaryRays.getResultBuffer().getCudaPtr();
     in.batchIDToSlot        = m_batchRays->getIDToSlotBuffer().getCudaPtr();
     in.batchResults         = m_batchRays->getResultBuffer().getCudaPtr();
+
     in.triMaterialColor     = m_scene->getTriMaterialColorBuffer().getCudaPtr();
     in.triShadedColor       = m_scene->getTriShadedColorBuffer().getCudaPtr();
     in.pixels               = m_image->getBuffer().getMutableCudaPtr();

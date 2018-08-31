@@ -49,7 +49,17 @@ enum BVHLayout
     BVHLayout_SOA_AOS,                  // Nodes = structure-of-arrays, triangles = array-of-structures.
     BVHLayout_SOA_SOA,                  // Nodes = structure-of-arrays, triangles = structure-of-arrays.
     BVHLayout_Compact,                  // Variant of BVHLayout_AOS_AOS with implicit leaf nodes.
+    
     BVHLayout_Compact2,                 // Variant of BVHLayout_AOS_AOS with implicit leaf nodes.
+    BVHLayout_Compact2_Idx,             // Modified variant with indexed triangles
+    
+    BVHLayout_Bin,
+    BVHLayout_Bin_Idx,
+    BVHLayout_Quad,
+    BVHLayout_Quad_Idx,
+    BVHLayout_Oct,
+    BVHLayout_Oct_Idx,
+    BVHLayout_Oct_Mini,
 
     BVHLayout_Max
 };
@@ -64,6 +74,7 @@ struct KernelConfig
     int         blockWidth;             // Desired blockDim.x.
     int         blockHeight;            // Desired blockDim.y.
     int         usePersistentThreads;   // True to enable persistent threads.
+    int         desiredWarps;
 };
 
 //------------------------------------------------------------------------
@@ -74,7 +85,7 @@ struct KernelConfig
     extern "C" __global__ void trace( \
         int             numRays,        /* Total number of rays in the batch. */ \
         bool            anyHit,         /* False if rays need to find the closest hit. */ \
-        float4*         rays,           /* Ray input: float3 origin, float tmin, float3 direction, float tmax. */ \
+        const float4*   const __restrict__  rays,           /* Ray input: float3 origin, float tmin, float3 direction, float tmax. */ \
         int4*           results,        /* Ray output: int triangleID, float hitT, int2 padding. */ \
         float4*         nodesA,         /* SOA: bytes 0-15 of each node, AOS/Compact: 64 bytes per node. */ \
         float4*         nodesB,         /* SOA: bytes 16-31 of each node, AOS/Compact: unused. */ \
@@ -83,7 +94,7 @@ struct KernelConfig
         float4*         trisA,          /* SOA: bytes 0-15 of each triangle, AOS: 64 bytes per triangle, Compact: 48 bytes per triangle. */ \
         float4*         trisB,          /* SOA: bytes 16-31 of each triangle, AOS/Compact: unused. */ \
         float4*         trisC,          /* SOA: bytes 32-47 of each triangle, AOS/Compact: unused. */ \
-        int*            triIndices)     /* Triangle index remapping table. */
+        const int*      const __restrict__  triIndices)     /* Triangle index remapping table. */
 
 //------------------------------------------------------------------------
 // Temporary data stored in shared memory to reduce register pressure.
@@ -131,6 +142,7 @@ TRACE_FUNC;                         // Launched for each batch of rays.
 #define FETCH_GLOBAL(NAME, IDX, TYPE) ((const TYPE*)NAME)[IDX]
 #define FETCH_TEXTURE(NAME, IDX, TYPE) tex1Dfetch(t_ ## NAME, IDX)
 #define STORE_RESULT(RAY, TRI, T) ((int2*)results)[(RAY) * 2] = make_int2(TRI, __float_as_int(T))
+#define STORE_RESULT_4i(RAY, TRI, T, U, V) ((int4*)results)[(RAY)*2] = make_int4(TRI, __float_as_int(T), __float_as_int(U), __float_as_int(V))
 
 //------------------------------------------------------------------------
 
@@ -212,6 +224,24 @@ __device__ __inline__ float spanEndKepler(float a0, float a1, float b0, float b1
 // Same for Fermi.
 __device__ __inline__ float spanBeginFermi(float a0, float a1, float b0, float b1, float c0, float c1, float d) {	return magic_max7(a0, a1, b0, b1, c0, c1, d); }
 __device__ __inline__ float spanEndFermi(float a0, float a1, float b0, float b1, float c0, float c1, float d)	{	return magic_min7(a0, a1, b0, b1, c0, c1, d); }
+
+
+// Sorting
+__device__ __inline__ void swap(float& dist, int& index, const int mask, const unsigned int dir)
+{
+    const float comp_dist = __shfl_xor(dist, mask);
+    const int comp_index = __shfl_xor(index, mask);
+    const bool flip = (dist != comp_dist) && (dist > comp_dist == dir);
+    index = flip ? index : comp_index;
+    dist = flip ? dist : comp_dist;
+    }
+
+__device__ __inline__ unsigned int bfe(const unsigned int i, const unsigned int k)
+{
+    unsigned int ret;
+    asm("{bfe.u32 %0, %1, %2, 1;}" : "=r"(ret) : "r"(i), "r"(k));
+    return ret;
+}
 
 #endif
 

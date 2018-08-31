@@ -407,8 +407,14 @@ void App::render(GLContext* gl)
     // Show statistics.
 
     CudaBVH* bvh = m_renderer.getCudaBVH();
+
     S64 nodeBytes = bvh->getNodeBuffer().getSize();
     S64 triBytes = bvh->getTriWoopBuffer().getSize() + bvh->getTriIndexBuffer().getSize();
+
+    if (bvh->getLayout() == BVHLayout_Oct_Mini) {
+        nodeBytes = bvh->m_nodes_XY.getSize() + bvh->m_nodes_ZI.getSize();
+        triBytes = bvh->m_triWoop_v0.getSize() + bvh->m_triWoop_v1.getSize() + bvh->m_triWoop_v2.getSize();
+    }
 
     String rayStats = sprintf("%.2f million %s rays, %.2f ms, %.2f MRays/s",
         (F32)numRays * 1.0e-6f,
@@ -616,6 +622,8 @@ void FW::runBenchmark(
     printf("Running benchmark for \"%s\".\n", meshFile.getPtr());
     printf("\n");
 
+	
+
     // Setup renderer.
 
     Renderer::Params params;
@@ -712,7 +720,6 @@ void FW::runBenchmark(
     }
 
     // Print summary table.
-
     printf("Done.\n");
     printf("\n");
 
